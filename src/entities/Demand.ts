@@ -5,12 +5,15 @@ import {
   CreateDateColumn, 
   UpdateDateColumn, 
   ManyToOne, 
-  JoinColumn 
+  JoinColumn,
+  Index 
 } from "typeorm";
 import type { User } from "./User.js";
 import type { Department } from "./Department.js";
 
 @Entity("demands")
+@Index(["departmentId", "status"])
+@Index(["created_at"])
 export class Demand {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -66,3 +69,5 @@ export class Demand {
   @UpdateDateColumn()
   updated_at!: Date;
 }
+
+// demand update

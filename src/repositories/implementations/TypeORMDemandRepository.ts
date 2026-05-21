@@ -68,52 +68,48 @@ export class TypeORMDemandRepository implements IDemandRepository {
     await this.repository.update(id, { viewed });
   }
 
-async findAllFiltered(filters: any) {
+async findAllFiltered(filters: any, page: number, limit: number) {
     console.log("=== FILTROS ENTRANDO NO REPOSITÓRIO ===", filters);
 
-    try {
-      const query = this.repository.createQueryBuilder("demand")
-        .leftJoinAndSelect("demand.sender", "sender")
-        .leftJoinAndSelect("demand.department", "department")
-        .leftJoinAndSelect("demand.technician", "technician")
-        .orderBy("demand.created_at", "DESC");
+    const query = this.repository.createQueryBuilder("demand")
+      .leftJoinAndSelect("demand.sender", "sender")
+      .leftJoinAndSelect("demand.department", "department")
+      .leftJoinAndSelect("demand.technician", "technician")
+      .orderBy("demand.created_at", "DESC");
 
-      // 1. Filtro de Secretaria
-      const deptId = filters.departmentId || filters.department_id;
-      if (deptId) {
-        query.andWhere("demand.departmentId = :deptId", { deptId });
-      }
-
-      // 2. Filtro de Status
-      if (filters.status) {
-        query.andWhere("demand.status = :status", { status: filters.status });
-      }
-
-      // 3. Filtro de Especialidade (Fila)
-      const code = filters.techTypeCode || filters.tech_type_code;
-      if (code && code !== "SEM_FILA" && code !== "SEM_FILA_CADASTRADA") {
-        query.andWhere("demand.techTypeCode = :techTypeCode", { techTypeCode: code });
-      }
-
-      // 4. FILTRO DE VÍNCULO CORRIGIDO (Usando aliases seguros do TypeORM)
-      const techId = filters.technicianId || filters.technician_id;
-      if (techId) {
-        // Regra corrigida: traz se o ID do técnico associado for igual ao logado 
-        // OU se o campo de relacionamento estiver completamente vazio (fila geral)
-        query.andWhere(
-          "(technician.id = :techId OR demand.current_technician_id IS NULL)",
-          { techId }
-        );
-      }
-
-      const result = await query.getMany();
-      console.log(`=== SUCESSO: BANCO RETORNOU ${result.length} DEMANDAS PARA O FILTRO ===`);
-      return result;
-
-    } catch (error) {
-      console.error("❌ ERRO CRÍTICO NO QUERYBUILDER:", error);
-      return [];
+    // 1. Filtro de Secretaria
+    const deptId = filters.departmentId || filters.department_id;
+    if (deptId) {
+      query.andWhere("demand.departmentId = :deptId", { deptId });
     }
+
+    // 2. Filtro de Status
+    if (filters.status) {
+      query.andWhere("demand.status = :status", { status: filters.status });
+    }
+
+    // 3. Filtro de Especialidade (Fila)
+    const code = filters.techTypeCode || filters.tech_type_code;
+    if (code && code !== "SEM_FILA" && code !== "SEM_FILA_CADASTRADA") {
+      query.andWhere("demand.techTypeCode = :techTypeCode", { techTypeCode: code });
+    }
+
+    // 4. FILTRO DE VÍNCULO CORRIGIDO (Usando aliases seguros do TypeORM)
+    const techId = filters.technicianId || filters.technician_id;
+    if (techId) {
+      // Regra corrigida: traz se o ID do técnico associado for igual ao logado 
+      // OU se o campo de relacionamento estiver completamente vazio (fila geral)
+      query.andWhere(
+        "(technician.id = :techId OR demand.current_technician_id IS NULL)",
+        { techId }
+      );
+    }
+
+    const skip = (page - 1) * limit;
+    query.skip(skip).take(limit);
+    const result = await query.getMany();
+    console.log(`=== SUCESSO: BANCO RETORNOU ${result.length} DEMANDAS PARA O FILTRO ===`);
+    return result;
   }
 
   async findHistoryByDemand(demandId: string) {

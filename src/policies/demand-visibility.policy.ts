@@ -1,11 +1,12 @@
 import { UserRole } from "../constants/user-roles.js";
 import type { AuthenticatedUser } from "../types/auth.js";
+import { AccessDeniedError } from "../errors/AccessDeniedError.js"; // Caminho corrigido
 
 export type DemandListFilters = {
   technician_id?: string;
   department_id?: string;
   status?: string;
-  tech_type_code?: string; // Alterado para bater direto com a coluna do banco
+  tech_type_code?: string; 
 };
 
 /**
@@ -57,7 +58,7 @@ export function assertManagementReportAllowed(user: AuthenticatedUser): void {
   if (role === UserRole.TECNICO && isSectorLeader === true) {
     return;
   }
-  throw new Error("Acesso negado ao relatório gerencial.");
+  throw new AccessDeniedError("Acesso negado ao relatório gerencial.");
 }
 
 export function resolveReportDepartmentFilter(params: {
@@ -81,4 +82,37 @@ export function resolveReportDepartmentFilter(params: {
   }
 
   return userDepartmentId;
+}
+
+/**
+ * Valida se o usuário tem permissão de acesso (leitura de histórico ou alteração) 
+ * para uma demanda específica (Ownership Check).
+ */
+export function assertDemandAccess(
+  user: AuthenticatedUser, 
+  demand: { departmentId: string; current_technician_id?: string | null }
+): void {
+  const { role, departmentId, id, isSectorLeader } = user;
+
+  // 1. ADMIN_GERAL: Acesso total irrestrito
+  if (role === UserRole.ADMIN_GERAL) return;
+
+  // 2. Lideranças de Setor: Podem acessar qualquer demanda da sua própria secretaria
+  const isLeader = 
+    role === UserRole.ADMIN_SETOR || 
+    role === UserRole.TECNICO_LIDER || 
+    (role === UserRole.TECNICO && isSectorLeader === true);
+
+  if (isLeader) {
+    if (demand.departmentId === departmentId) return;
+    throw new AccessDeniedError("Acesso negado: Esta demanda pertence a outra secretaria.");
+  }
+
+  // 3. Técnico Comum: Só pode acessar se ele for o técnico atualmente atribuído
+  if (role === UserRole.TECNICO) {
+    if (demand.current_technician_id === id) return;
+    throw new AccessDeniedError("Acesso negado: Você não é o técnico atribuído a esta demanda.");
+  }
+
+  throw new AccessDeniedError("Acesso negado: Você não tem permissão para acessar esta demanda.");
 }

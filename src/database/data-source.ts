@@ -10,15 +10,19 @@ import { DemandHistory } from "../entities/DemandHistory.js";
 
 dotenv.config();
 
+const dbUrl = process.env.DATABASE_URL;
+
+if (!dbUrl) {
+    throw new Error("❌ ERRO FATAL: DATABASE_URL não definida no .env");
+}
+
 export const AppDataSource = new DataSource({
     type: "postgres",
-    // O "as string" resolve o erro 2345, garantindo ao TS que o valor virá do .env
-    url: process.env.DATABASE_URL as string,
+    url: dbUrl, 
     
-    synchronize: true, 
+    synchronize: false, // Desativado para evitar perda de dados e schema drift
     logging: false,
-    
     entities: [User, Demand, Department, DemandHistory],
     subscribers: [],
-    migrations: [],
+    migrations: ["src/database/migrations/*.ts"],
 });

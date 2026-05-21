@@ -15,23 +15,15 @@ interface TokenPayload {
 }
 
 export function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+  // Busca o token no cookie
+  const token = req.cookies?.token as string | undefined;
 
-  if (!authHeader) {
-    return res.status(401).json({ message: "Token não enviado" });
+  if (!token) { // Se não houver token no cookie, retorna erro
+    return res.status(401).json({ message: "Token não enviado ou inválido" });
   }
-
-  const parts = authHeader.split(" ");
-
-  if (parts.length !== 2) {
-    return res.status(401).json({ message: "Erro no formato do token" });
-  }
-
-  const token = parts[1] as string;
 
   try {
-    const secret: string = process.env.JWT_SECRET || "SUA_CHAVE_SECRETA_PADRAO";
-
+    const secret = process.env.JWT_SECRET as string;
     const decoded = jwt.verify(token, secret) as TokenPayload;
 
     const departmentId = decoded.departmentId ?? decoded.deptId;

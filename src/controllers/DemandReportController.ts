@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { DemandService } from "../services/DemandService.js";
 import { TypeORMDemandRepository } from "../repositories/implementations/TypeORMDemandRepository.js";
 import { ReportPDFService } from "../services/ReportPDFService.js";
+import { AccessDeniedError } from "../errors/AccessDeniedError.js";
 import type { AuthenticatedUser } from "../types/auth.js";
 
 function requireAuthUser(req: Request): AuthenticatedUser {
@@ -32,7 +33,7 @@ export class DemandReportController {
       return res.json(report);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao gerar relatório.";
-      const status = message.includes("negado") || message.includes("permissão") ? 403 : 400;
+      const status = error instanceof AccessDeniedError ? 403 : 400; // Usa a classe de erro
       return res.status(status).json({ error: message });
     }
   }
@@ -67,7 +68,7 @@ export class DemandReportController {
       return res.send(pdfBuffer);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao exportar PDF.";
-      const status = message.includes("negado") || message.includes("permissão") ? 403 : 400;
+      const status = error instanceof AccessDeniedError ? 403 : 400; // Usa a classe de erro
       return res.status(status).json({ error: message });
     }
   }

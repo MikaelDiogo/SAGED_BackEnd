@@ -24,9 +24,10 @@ export class DemandController {
       if (!user?.id) {
         return res.status(401).json({ error: "Não autenticado." });
       }
+
       const result = await this.getService().updateTechnicalStatus({
         demandId: String(id),
-        technicianId: user.id,
+        user: user, // Passamos o objeto do usuário completo para o Service validar IDOR
         status: req.body.status,
         description: req.body.description,
         asset_tag: req.body.asset_tag,
@@ -45,7 +46,10 @@ export class DemandController {
         return res.status(401).json({ error: "Contexto de utilizador não identificado." });
       }
 
-      const demands = await this.getService().listForDashboard(user);
+      const page = parseInt(req.query.page as string) || 1; // Default para página 1
+      const limit = parseInt(req.query.limit as string) || 10; // Default para 10 itens por página
+
+      const demands = await this.getService().listForDashboard(user, page, limit);
       return res.json(demands);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao listar demandas.";
@@ -56,8 +60,11 @@ export class DemandController {
   async showHistory(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const user = req.user;
       if (!id) return res.status(400).json({ error: "ID da demanda é obrigatório." });
-      const history = await this.getService().getDemandTimeline(String(id));
+      if (!user) return res.status(401).json({ error: "Não autenticado." });
+
+      const history = await this.getService().getDemandTimeline(String(id), user);
       return res.json(history);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao buscar histórico.";

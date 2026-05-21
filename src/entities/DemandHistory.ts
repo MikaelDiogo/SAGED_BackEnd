@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from "typeorm";
 import type { Demand } from "./Demand.js";
 import type { User } from "./User.js";
 
 @Entity("demand_history")
+@Index(["demandId"])
 export class DemandHistory {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -33,3 +34,5 @@ export class DemandHistory {
   @CreateDateColumn()
   created_at!: Date;
 }
+
+// demand history update

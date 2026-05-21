@@ -28,12 +28,13 @@ export interface IDemandRepository {
   countByProtocolPrefix(prefix: string): Promise<number>;
   findDepartmentById(id: string): Promise<{ code: string } | null>;
   updateViewStatus(id: string, viewed: boolean): Promise<void>;
-  findAllFiltered(filters: {
-    technicianId?: string;
-    departmentId?: string;
-    status?: string;
-    techTypeCode?: string;
-  }): Promise<any[]>;
+  findAllFiltered(
+    filters: any, 
+    page: number, 
+    limit: number
+  ): Promise<any[]>;
   findHistoryByDemand(demandId: string): Promise<any[]>;
   getReportData(filters: { departmentId?: string; startDate: Date; endDate: Date }): Promise<any[]>;
 }
+
+// assingment update

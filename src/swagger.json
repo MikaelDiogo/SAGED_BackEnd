@@ -3,6 +3,7 @@
   "info": {
     "title": "SAGED API",
     "description": "Backend do Sistema de Acompanhamento e Gestão de Demandas (SAGED): protocolo inteligente `YYYY-DEP-TEC-ID`, RBAC por secretaria/técnico, histórico auditável e integração WhatsApp (resumo por LID).\n\n**Papéis (`role`)**: `ADMIN_GERAL` (visão global), `ADMIN_SETOR` e `TECNICO_LIDER` (fila da secretaria), `TECNICO` (quadro pessoal). Um `TECNICO` pode ser promovido com `is_sector_leader=true` para mesma visão de líder.\n\n**Autenticação**: rotas privadas exigem `Authorization: Bearer <token>` obtido em `POST /sessions`.",
+    "description": "Backend do Sistema de Acompanhamento e Gestão de Demandas (SAGED): protocolo inteligente `YYYY-DEP-TEC-ID`, RBAC por secretaria/técnico, histórico auditável e integração WhatsApp (resumo por LID).\n\n**Papéis (`role`)**: `ADMIN_GERAL` (visão global), `ADMIN_SETOR` e `TECNICO_LIDER` (fila da secretaria), `TECNICO` (quadro pessoal). Um `TECNICO` pode ser promovido com `is_sector_leader=true` para mesma visão de líder.\n\n**Autenticação**: rotas privadas utilizam um **Cookie HttpOnly** chamado `token`, emitido automaticamente no `POST /sessions`. O navegador gerencia o envio deste cookie em todas as requisições subsequentes.",
     "version": "1.1.0"
   },
   "servers": [
@@ -21,10 +22,10 @@
   ],
   "components": {
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "token"
       }
     },
     "schemas": {
@@ -223,7 +224,7 @@
       "post": {
         "tags": ["Autenticação"],
         "summary": "Login (JWT)",
-        "security": [],
+        "description": "Rota protegida por rate limiting (5 tentativas por IP a cada 5 minutos).",
         "requestBody": {
           "required": true,
           "content": {
@@ -233,6 +234,15 @@
         "responses": {
           "200": {
             "description": "Token emitido",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Contém o token JWT. Parâmetros: HttpOnly, Secure, SameSite=Lax",
+                "schema": {
+                  "type": "string",
+                  "example": "token=abc123...; HttpOnly; SameSite=Lax"
+                }
+              }
+            },
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/SessionResponse" } }
             }
@@ -250,8 +260,8 @@
       "post": {
         "tags": ["Usuários"],
         "summary": "Criar usuário",
-        "description": "Público no bootstrap; em produção restrinja com política própria.",
-        "security": [],
+        "description": "Apenas ADMIN_GERAL pode criar usuários.",
+        "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -278,7 +288,7 @@
       "post": {
         "tags": ["Departamentos"],
         "summary": "Cadastrar secretaria",
-        "security": [],
+        "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -303,7 +313,7 @@
       "get": {
         "tags": ["Departamentos"],
         "summary": "Listar secretarias",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "responses": {
           "200": {
             "description": "Lista",
@@ -327,8 +337,22 @@
         "tags": ["Demandas"],
         "summary": "Listar demandas (escopo por RBAC)",
         "description": "Filtragem: `ADMIN_GERAL` vê tudo; `ADMIN_SETOR`/`TECNICO_LIDER`/`TECNICO` com `is_sector_leader` vê a secretaria; `TECNICO` vê apenas `current_technician_id = eu`.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "responses": {
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 },
+            "description": "Número da página para paginação."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "default": 10 },
+            "description": "Número de itens por página."
+          }
+        ],
           "200": {
             "description": "Lista",
             "content": {
@@ -349,7 +373,7 @@
         "tags": ["Demandas"],
         "summary": "Abrir demanda",
         "description": "Gera protocolo `YYYY-DEP-TEC-ID` com contador reiniciado por combinação (ano, DEP, TEC).",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -377,7 +401,7 @@
         "tags": ["Demandas"],
         "summary": "Atualizar status (auditoria automática)",
         "description": "Registra `previous_status` e `status` no histórico; notifica o solicitante (LID) quando configurado.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
@@ -418,7 +442,7 @@
       "get": {
         "tags": ["Demandas"],
         "summary": "Linha do tempo / auditoria",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
@@ -445,7 +469,7 @@
         "tags": ["Relatórios"],
         "summary": "Relatório gerencial (JSON)",
         "description": "Permitido para `ADMIN_GERAL`, `ADMIN_SETOR`, `TECNICO_LIDER` e `TECNICO` com `is_sector_leader=true`. `ADMIN_GERAL` pode filtrar por `departmentId`.",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 12 } },
           { "name": "year", "in": "query", "schema": { "type": "integer", "example": 2026 } },
@@ -482,7 +506,7 @@
       "get": {
         "tags": ["Relatórios"],
         "summary": "Exportar relatório mensal em PDF",
-        "security": [{ "bearerAuth": [] }],
+        "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 12 } },
           { "name": "year", "in": "query", "schema": { "type": "integer", "example": 2026 } },

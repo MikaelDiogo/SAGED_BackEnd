@@ -1,9 +1,10 @@
 // src/entities/User.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany, ManyToOne, JoinColumn, Index } from "typeorm";
 import type { Demand } from "./Demand.js";
 import { Department } from "./Department.js"; // Importe a entidade Department
 
 @Entity("users")
+@Index(["lid"])
 export class User {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -47,3 +48,5 @@ export class User {
   @OneToMany("Demand", "technician")
   demands_assigned!: Demand[];
 }
+
+// user update

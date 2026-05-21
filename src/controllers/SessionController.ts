@@ -26,7 +26,7 @@ export class SessionController {
         return res.status(401).json({ message: "E-mail ou senha inválidos" });
       }
 
-      const secret = (process.env.JWT_SECRET || "SUA_CHAVE_SECRETA_PADRAO") as string;
+      const secret = process.env.JWT_SECRET as string;
 
       const effectiveRole = user.role ?? UserRole.TECNICO;
 
@@ -47,6 +47,16 @@ export class SessionController {
         },
       );
 
+      // Define a data de expiração do cookie (1 dia a partir de agora)
+      const oneDay = 24 * 60 * 60 * 1000; // milissegundos
+      const expirationDate = new Date(Date.now() + oneDay);
+
+      res.cookie('token', token, {
+        httpOnly: true, // Impede acesso via JavaScript no navegador
+        secure: process.env.NODE_ENV === 'production', // Envia apenas em HTTPS em produção
+        sameSite: 'lax', // Proteção contra CSRF
+        expires: expirationDate,
+      });
       return res.json({
         user: {
           id: user.id,
