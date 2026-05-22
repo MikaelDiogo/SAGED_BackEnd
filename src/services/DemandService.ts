@@ -8,6 +8,7 @@ import type { AuthenticatedUser } from "../types/auth.js";
 import { assertDemandAccess, resolveDemandListFilters } from "../policies/demand-visibility.policy.js";
 import { AppDataSource } from "../database/data-source.js";
 import { Demand } from "../entities/Demand.js";
+import { UserRole } from "../constants/user-roles.js";
 
 export interface UpdateTechnicalStatusInput {
   demandId: string;
@@ -73,15 +74,21 @@ export class DemandService {
     // FIX: IDOR. O serviço agora valida se o usuário tem permissão sobre esta demanda específica.
     assertDemandAccess(data.user, demand);
 
-    // Repassamos para o serviço de atualização (ajustando se necessário conforme a interface esperada por ele)
-    return this.statusUpdateService.execute(data as any);
+    // FIX: Mapeamento explícito para evitar que technicianId chegue undefined (anteriormente oculto por 'as any')
+    return this.statusUpdateService.execute({
+      demandId: data.demandId,
+      technicianId: data.user.id,
+      status: data.status,
+      description: data.description,
+      asset_tag: data.asset_tag,
+    });
   }
 
   async listForDashboard(user: AuthenticatedUser, page: number, limit: number) {
     const filters = resolveDemandListFilters(user);
 
-    // CORREÇÃO: Alterado de technicianId para technician_id para bater com o tipo DemandListFilters
-    if (user.role === "TECNICO" && !user.isSectorLeader) {
+    // FIX: Uso da constante UserRole para manter a consistência do RBAC
+    if (user.role === UserRole.TECNICO && !user.isSectorLeader) {
       filters.technician_id = user.id;
     }
 

@@ -2,9 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "SAGED API",
-    "description": "Backend do Sistema de Acompanhamento e Gestão de Demandas (SAGED): protocolo inteligente `YYYY-DEP-TEC-ID`, RBAC por secretaria/técnico, histórico auditável e integração WhatsApp (resumo por LID).\n\n**Papéis (`role`)**: `ADMIN_GERAL` (visão global), `ADMIN_SETOR` e `TECNICO_LIDER` (fila da secretaria), `TECNICO` (quadro pessoal). Um `TECNICO` pode ser promovido com `is_sector_leader=true` para mesma visão de líder.\n\n**Autenticação**: rotas privadas exigem `Authorization: Bearer <token>` obtido em `POST /sessions`.",
     "description": "Backend do Sistema de Acompanhamento e Gestão de Demandas (SAGED): protocolo inteligente `YYYY-DEP-TEC-ID`, RBAC por secretaria/técnico, histórico auditável e integração WhatsApp (resumo por LID).\n\n**Papéis (`role`)**: `ADMIN_GERAL` (visão global), `ADMIN_SETOR` e `TECNICO_LIDER` (fila da secretaria), `TECNICO` (quadro pessoal). Um `TECNICO` pode ser promovido com `is_sector_leader=true` para mesma visão de líder.\n\n**Autenticação**: rotas privadas utilizam um **Cookie HttpOnly** chamado `token`, emitido automaticamente no `POST /sessions`. O navegador gerencia o envio deste cookie em todas as requisições subsequentes.",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "servers": [
     {
@@ -16,9 +15,10 @@
     { "name": "Autenticação", "description": "Login JWT" },
     { "name": "Usuários", "description": "Cadastro e perfis (RBAC + especialidade TEC)" },
     { "name": "Departamentos", "description": "Secretarias e códigos DEP do protocolo" },
+    { "name": "Especialidades", "description": "Especialidades técnicas dos operadores (ex.: HARDWARE, REDES)" },
     { "name": "Demandas", "description": "Ciclo de vida do chamado e histórico" },
     { "name": "Relatórios", "description": "Indicadores gerenciais e exportação PDF" },
-    { "name": "Integrações", "description": "Endpoints para bots (ex.: WhatsApp)" }
+    { "name": "Integrações", "description": "Endpoints para bots protegidos por API Key" }
   ],
   "components": {
     "securitySchemes": {
@@ -26,6 +26,12 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "token"
+      },
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Chave de serviço estática para integrações de backend/bots."
       }
     },
     "schemas": {
@@ -61,12 +67,12 @@
           "tech_type_code": {
             "type": "string",
             "nullable": true,
-            "description": "Código TEC da especialidade (ex.: 01 Redes, 02 Hardware).",
-            "example": "02"
+            "description": "Código TEC da especialidade (ex.: 01 Hardware, 02 Redes).",
+            "example": "01"
           },
           "is_sector_leader": {
             "type": "boolean",
-            "description": "Quando true em um TECNICO, amplia a visão para toda a secretaria (liderança delegada).",
+            "description": "Quando true em um TECNICO, amplia a visão para toda a secretaria.",
             "example": false
           },
           "departmentId": { "type": "string", "format": "uuid", "nullable": true }
@@ -102,7 +108,7 @@
           "name": { "type": "string", "example": "Secretaria Municipal de Saúde" },
           "code": {
             "type": "string",
-            "description": "Código DEP usado no protocolo (normalizado para 2 dígitos quando numérico).",
+            "description": "Código DEP usado no protocolo.",
             "example": "01"
           }
         }
@@ -115,10 +121,25 @@
           "code": { "type": "string" }
         }
       },
+      "CreateSpecialtyRequest": {
+        "type": "object",
+        "required": ["code", "name"],
+        "properties": {
+          "code": { "type": "string", "example": "01", "description": "Código identificador de 2 dígitos." },
+          "name": { "type": "string", "example": "HARDWARE" }
+        }
+      },
+      "Specialty": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "code": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      },
       "DemandStatus": {
         "type": "string",
-        "enum": ["A_FAZER", "EM_ANDAMENTO", "CONCLUIDO", "INTERROMPIDO", "CANCELADO"],
-        "description": "`INTERROMPIDO`/`CANCELADO` exigem justificativa longa (>=15 caracteres)."
+        "enum": ["A_FAZER", "EM_ANDAMENTO", "CONCLUIDO", "INTERROMPIDO", "CANCELADO"]
       },
       "CreateDemandRequest": {
         "type": "object",
@@ -128,17 +149,12 @@
           "description": { "type": "string", "example": "Equipamento reinicia sozinho à noite." },
           "senderId": { "type": "string", "format": "uuid" },
           "departmentId": { "type": "string", "format": "uuid" },
-          "techTypeCode": {
-            "type": "string",
-            "description": "Código TEC (segmento do protocolo).",
-            "example": "01"
-          },
+          "techTypeCode": { "type": "string", "description": "Código TEC do segmento.", "example": "02" },
           "asset_tag": { "type": "string", "nullable": true, "example": "123456" }
         }
       },
       "Demand": {
         "type": "object",
-        "description": "Demanda persistida com protocolo `YYYY-DEP-TEC-00001`.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "protocol": { "type": "string", "example": "2026-01-02-00005" },
@@ -161,10 +177,7 @@
         "required": ["status"],
         "properties": {
           "status": { "$ref": "#/components/schemas/DemandStatus" },
-          "description": {
-            "type": "string",
-            "description": "Obrigatória com mínimo de 15 caracteres para `INTERROMPIDO`/`CANCELADO`."
-          },
+          "description": { "type": "string", "description": "Mínimo 15 caracteres se for cancelado ou interrompido." },
           "asset_tag": { "type": "string", "nullable": true }
         }
       },
@@ -223,8 +236,8 @@
     "/sessions": {
       "post": {
         "tags": ["Autenticação"],
-        "summary": "Login (JWT)",
-        "description": "Rota protegida por rate limiting (5 tentativas por IP a cada 5 minutos).",
+        "summary": "Login do sistema",
+        "description": "Gera sessão e injeta Cookie HttpOnly 'token' de segurança.",
         "requestBody": {
           "required": true,
           "content": {
@@ -233,14 +246,11 @@
         },
         "responses": {
           "200": {
-            "description": "Token emitido",
+            "description": "Cookie definido e dados retornados.",
             "headers": {
               "Set-Cookie": {
-                "description": "Contém o token JWT. Parâmetros: HttpOnly, Secure, SameSite=Lax",
-                "schema": {
-                  "type": "string",
-                  "example": "token=abc123...; HttpOnly; SameSite=Lax"
-                }
+                "description": "Contém o token JWT com flags HttpOnly; Secure; SameSite=Lax",
+                "schema": { "type": "string" }
               }
             },
             "content": {
@@ -249,9 +259,7 @@
           },
           "401": {
             "description": "Credenciais inválidas",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } } }
           }
         }
       }
@@ -259,8 +267,8 @@
     "/users": {
       "post": {
         "tags": ["Usuários"],
-        "summary": "Criar usuário",
-        "description": "Apenas ADMIN_GERAL pode criar usuários.",
+        "summary": "Criar novo usuário",
+        "description": "Apenas ADMIN_GERAL pode criar contas de operadores.",
         "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
@@ -270,16 +278,12 @@
         },
         "responses": {
           "201": {
-            "description": "Criado",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/UserPublic" } }
-            }
+            "description": "Criado com sucesso",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserPublic" } } }
           },
           "400": {
-            "description": "Validação / duplicidade",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "description": "Erro de processamento",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } } }
           }
         }
       }
@@ -287,7 +291,8 @@
     "/departments": {
       "post": {
         "tags": ["Departamentos"],
-        "summary": "Cadastrar secretaria",
+        "summary": "Cadastrar secretaria municipal",
+        "description": "Apenas ADMIN_GERAL possui permissão.",
         "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
@@ -298,35 +303,52 @@
         "responses": {
           "201": {
             "description": "Criado",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Department" } }
-            }
-          },
-          "400": {
-            "description": "Erro de validação",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Department" } } }
           }
         }
       },
       "get": {
         "tags": ["Departamentos"],
-        "summary": "Listar secretarias",
+        "summary": "Listar todas as secretarias",
         "security": [{ "cookieAuth": [] }],
         "responses": {
           "200": {
-            "description": "Lista",
+            "description": "Lista recuperada",
             "content": {
-              "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Department" } }
-              }
+              "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Department" } } }
             }
-          },
-          "401": {
-            "description": "Não autenticado",
+          }
+        }
+      }
+    },
+    "/specialties": {
+      "post": {
+        "tags": ["Especialidades"],
+        "summary": "Criar nova especialidade técnica",
+        "description": "Apenas ADMIN_GERAL pode registrar novas especialidades.",
+        "security": [{ "cookieAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateSpecialtyRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Especialidade criada",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Specialty" } } }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Especialidades"],
+        "summary": "Listar especialidades ativas",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Lista de especialidades",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
+              "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Specialty" } } }
             }
           }
         }
@@ -335,44 +357,25 @@
     "/demands": {
       "get": {
         "tags": ["Demandas"],
-        "summary": "Listar demandas (escopo por RBAC)",
-        "description": "Filtragem: `ADMIN_GERAL` vê tudo; `ADMIN_SETOR`/`TECNICO_LIDER`/`TECNICO` com `is_sector_leader` vê a secretaria; `TECNICO` vê apenas `current_technician_id = eu`.",
+        "summary": "Listar chamados com escopo contextual",
+        "description": "Aplica o RBAC automaticamente no banco de dados.",
         "security": [{ "cookieAuth": [] }],
-        "responses": {
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "default": 1 },
-            "description": "Número da página para paginação."
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "default": 10 },
-            "description": "Número de itens por página."
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 }, "description": "Página atual." },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 10 }, "description": "Itens por página." }
         ],
+        "responses": {
           "200": {
-            "description": "Lista",
+            "description": "Registros retornados com paginação",
             "content": {
-              "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Demand" } }
-              }
-            }
-          },
-          "401": {
-            "description": "Contexto ausente",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
+              "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Demand" } } }
             }
           }
         }
       },
       "post": {
         "tags": ["Demandas"],
-        "summary": "Abrir demanda",
-        "description": "Gera protocolo `YYYY-DEP-TEC-ID` com contador reiniciado por combinação (ano, DEP, TEC).",
+        "summary": "Abrir nova demanda",
         "security": [{ "cookieAuth": [] }],
         "requestBody": {
           "required": true,
@@ -382,16 +385,8 @@
         },
         "responses": {
           "201": {
-            "description": "Criada",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Demand" } }
-            }
-          },
-          "400": {
-            "description": "Erro de validação",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "description": "Demanda criada com protocolo gerado",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Demand" } } }
           }
         }
       }
@@ -399,8 +394,7 @@
     "/demands/{id}/status": {
       "patch": {
         "tags": ["Demandas"],
-        "summary": "Atualizar status (auditoria automática)",
-        "description": "Registra `previous_status` e `status` no histórico; notifica o solicitante (LID) quando configurado.",
+        "summary": "Alterar estágio da demanda",
         "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
@@ -413,27 +407,8 @@
         },
         "responses": {
           "200": {
-            "description": "Atualizado",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": { "message": { "type": "string" } }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Erro de validação",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
-          },
-          "401": {
-            "description": "Não autenticado",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "description": "Movimentação registrada",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } } } } }
           }
         }
       }
@@ -441,24 +416,16 @@
     "/demands/{id}/history": {
       "get": {
         "tags": ["Demandas"],
-        "summary": "Linha do tempo / auditoria",
+        "summary": "Visualizar linha do tempo de auditoria",
         "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
         "responses": {
           "200": {
-            "description": "Histórico ordenado",
+            "description": "Histórico sequencial",
             "content": {
-              "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DemandHistoryEntry" } }
-              }
-            }
-          },
-          "400": {
-            "description": "Demanda inexistente",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
+              "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DemandHistoryEntry" } } }
             }
           }
         }
@@ -467,37 +434,17 @@
     "/demands/reports/management": {
       "get": {
         "tags": ["Relatórios"],
-        "summary": "Relatório gerencial (JSON)",
-        "description": "Permitido para `ADMIN_GERAL`, `ADMIN_SETOR`, `TECNICO_LIDER` e `TECNICO` com `is_sector_leader=true`. `ADMIN_GERAL` pode filtrar por `departmentId`.",
+        "summary": "Obter indicadores do painel analítico",
         "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 12 } },
-          { "name": "year", "in": "query", "schema": { "type": "integer", "example": 2026 } },
-          {
-            "name": "departmentId",
-            "in": "query",
-            "schema": { "type": "string", "format": "uuid" },
-            "description": "Somente `ADMIN_GERAL` (filtro opcional por secretaria)."
-          }
+          { "name": "year", "in": "query", "schema": { "type": "integer" } },
+          { "name": "departmentId", "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "Filtro livre apenas para ADMIN_GERAL." }
         ],
         "responses": {
           "200": {
-            "description": "Métricas agregadas",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ManagementReport" } }
-            }
-          },
-          "403": {
-            "description": "Sem permissão",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
-          },
-          "401": {
-            "description": "Não autenticado",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "description": "JSON de métricas para gráficos",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ManagementReport" } } }
           }
         }
       }
@@ -505,29 +452,17 @@
     "/demands/reports/export-pdf": {
       "get": {
         "tags": ["Relatórios"],
-        "summary": "Exportar relatório mensal em PDF",
+        "summary": "Baixar documento impresso consolidado",
         "security": [{ "cookieAuth": [] }],
         "parameters": [
           { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 12 } },
-          { "name": "year", "in": "query", "schema": { "type": "integer", "example": 2026 } },
+          { "name": "year", "in": "query", "schema": { "type": "integer" } },
           { "name": "departmentId", "in": "query", "schema": { "type": "string", "format": "uuid" } }
         ],
         "responses": {
           "200": {
-            "description": "PDF binário",
+            "description": "Documento gerado",
             "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
-          },
-          "403": {
-            "description": "Sem permissão",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
-          },
-          "401": {
-            "description": "Não autenticado",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
           }
         }
       }
@@ -535,30 +470,16 @@
     "/demands/whatsapp/summary/{lid}": {
       "get": {
         "tags": ["Integrações"],
-        "summary": "Resumo de tarefas por LID (WhatsApp)",
-        "description": "Endpoint pensado para webhook/bot. **Público** no estado atual — proteja em produção (token de serviço, IP allowlist, etc.).",
-        "security": [],
+        "summary": "Relatório sintético para bot externo",
+        "description": "Protegido estritamente pelo middleware de x-api-key do SAGE.",
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
-          {
-            "name": "lid",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "Identificador WhatsApp do técnico."
-          }
+          { "name": "lid", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Identificador único de chat." }
         ],
         "responses": {
           "200": {
-            "description": "Texto pronto para envio",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/WhatsAppSummaryResponse" } }
-            }
-          },
-          "400": {
-            "description": "Erro",
-            "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorMessage" } }
-            }
+            "description": "Mensagem texturizada em formato string",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WhatsAppSummaryResponse" } } }
           }
         }
       }

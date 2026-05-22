@@ -3,39 +3,51 @@ import { Demand } from '../../entities/Demand.js';
 import { Department } from '../../entities/Department.js';
 import { DemandHistory } from '../../entities/DemandHistory.js';
 import type { IDemandRepository, CreateDemandData, DemandHistoryEntry } from '../IDemandRepository.js';
+import type { ObjectLiteral } from 'typeorm';
 
 export class TypeORMDemandRepository implements IDemandRepository {
-  private repository = AppDataSource.getRepository(Demand);
-  private deptRepository = AppDataSource.getRepository(Department);
-  private historyRepository = AppDataSource.getRepository(DemandHistory);
+  private readonly repository = AppDataSource.getRepository(Demand);
+  private readonly deptRepository = AppDataSource.getRepository(Department);
+  private readonly historyRepository = AppDataSource.getRepository(DemandHistory);
 
-  async create(data: CreateDemandData) {
+  async create(data: CreateDemandData): Promise<Demand> {
     const demand = this.repository.create(data);
     return await this.repository.save(demand);
   }
 
-  async findById(id: string) {
+  async findById(id: string): Promise<Demand | null> {
+    if (!id) return null;
+    
     return await this.repository.findOne({ 
       where: { id },
       relations: ['sender', 'department'] 
     });
   }
 
-  async findDepartmentById(id: string) {
+  async findDepartmentById(id: string): Promise<Department | null> {
+    if (!id) return null;
+
     return await this.deptRepository.findOne({ 
       where: { id },
       select: ["code"] 
     });
   }
 
-  async countByProtocolPrefix(prefix: string) {
+  async countByProtocolPrefix(prefix: string): Promise<number> {
+    if (!prefix) return 0;
+
+    // Sanitização defensiva para evitar wildcards maliciosos no LIKE
+    const sanitizedPrefix = prefix.replace(/[%_]/g, '\\$&');
+
     return await this.repository
       .createQueryBuilder("demand")
-      .where("demand.protocol LIKE :prefix", { prefix: `${prefix}%` })
+      .where("demand.protocol LIKE :prefix", { prefix: `${sanitizedPrefix}%` })
       .getCount();
   }
 
-  async updateStatus(id: string, status: string, technicianId?: string, asset_tag?: string) {
+  async updateStatus(id: string, status: string, technicianId?: string, asset_tag?: string): Promise<void> {
+    if (!id) return;
+
     await this.repository.update(id, {
       status,
       current_technician_id: technicianId || null, 
@@ -45,7 +57,7 @@ export class TypeORMDemandRepository implements IDemandRepository {
     } as import("typeorm/query-builder/QueryPartialEntity.js").QueryDeepPartialEntity<Demand>);
   }
 
-  async addHistory(data: DemandHistoryEntry) {
+  async addHistory(data: DemandHistoryEntry): Promise<void> {
     const history = this.historyRepository.create({
       demandId: data.demandId,
       technicianId: data.technicianId,
@@ -56,7 +68,9 @@ export class TypeORMDemandRepository implements IDemandRepository {
     await this.historyRepository.save(history);
   }
 
-  async listByTechType(techTypeCode: string) {
+  async listByTechType(techTypeCode: string): Promise<Demand[]> {
+    if (!techTypeCode) return [];
+
     return await this.repository.find({
       where: { techTypeCode },
       relations: ['sender', 'department'],
@@ -64,12 +78,14 @@ export class TypeORMDemandRepository implements IDemandRepository {
     });
   }
 
-  async updateViewStatus(id: string, viewed: boolean) {
+  async updateViewStatus(id: string, viewed: boolean): Promise<void> {
+    if (!id) return;
     await this.repository.update(id, { viewed });
   }
 
-async findAllFiltered(filters: any, page: number, limit: number) {
-    console.log("=== FILTROS ENTRANDO NO REPOSITÓRIO ===", filters);
+  async findAllFiltered(filters: ObjectLiteral, page: number, limit: number): Promise<Demand[]> {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit)); // Proteção contra sobrecarga de memória (DoS)
 
     const query = this.repository.createQueryBuilder("demand")
       .leftJoinAndSelect("demand.sender", "sender")
@@ -77,42 +93,41 @@ async findAllFiltered(filters: any, page: number, limit: number) {
       .leftJoinAndSelect("demand.technician", "technician")
       .orderBy("demand.created_at", "DESC");
 
-    // 1. Filtro de Secretaria
-    const deptId = filters.departmentId || filters.department_id;
+    // 1. Filtro de Secretaria (Uso exclusivo da propriedade mapeada na Entidade)
+    const deptId = filters?.departmentId || filters?.department_id;
     if (deptId) {
       query.andWhere("demand.departmentId = :deptId", { deptId });
     }
 
     // 2. Filtro de Status
-    if (filters.status) {
+    if (filters?.status) {
       query.andWhere("demand.status = :status", { status: filters.status });
     }
 
     // 3. Filtro de Especialidade (Fila)
-    const code = filters.techTypeCode || filters.tech_type_code;
+    const code = filters?.techTypeCode || filters?.tech_type_code;
     if (code && code !== "SEM_FILA" && code !== "SEM_FILA_CADASTRADA") {
       query.andWhere("demand.techTypeCode = :techTypeCode", { techTypeCode: code });
     }
 
-    // 4. FILTRO DE VÍNCULO CORRIGIDO (Usando aliases seguros do TypeORM)
-    const techId = filters.technicianId || filters.technician_id;
+    // 4. Filtro de Vínculo Técnico Seguro
+    const techId = filters?.technicianId || filters?.technician_id;
     if (techId) {
-      // Regra corrigida: traz se o ID do técnico associado for igual ao logado 
-      // OU se o campo de relacionamento estiver completamente vazio (fila geral)
       query.andWhere(
         "(technician.id = :techId OR demand.current_technician_id IS NULL)",
         { techId }
       );
     }
 
-    const skip = (page - 1) * limit;
-    query.skip(skip).take(limit);
-    const result = await query.getMany();
-    console.log(`=== SUCESSO: BANCO RETORNOU ${result.length} DEMANDAS PARA O FILTRO ===`);
-    return result;
+    const skip = (safePage - 1) * safeLimit;
+    query.skip(skip).take(safeLimit);
+
+    return await query.getMany();
   }
 
-  async findHistoryByDemand(demandId: string) {
+  async findHistoryByDemand(demandId: string): Promise<DemandHistory[]> {
+    if (!demandId) return [];
+
     return await this.historyRepository.find({
       where: { demandId },
       relations: ['technician'],
@@ -120,7 +135,7 @@ async findAllFiltered(filters: any, page: number, limit: number) {
     });
   }
 
-  async getReportData(filters: { departmentId?: string; startDate: Date; endDate: Date }) {
+  async getReportData(filters: { departmentId?: string; startDate: Date; endDate: Date }): Promise<Demand[]> {
     const query = this.repository.createQueryBuilder("demand")
       .leftJoinAndSelect("demand.technician", "technician")
       .leftJoinAndSelect("demand.department", "department")
@@ -129,8 +144,9 @@ async findAllFiltered(filters: any, page: number, limit: number) {
         end: filters.endDate 
       });
 
+    // CORREÇÃO CRÍTICA: Removido a propriedade física inválida "demand.department_id"
     if (filters.departmentId) {
-      query.andWhere("(demand.departmentId = :departmentId OR demand.department_id = :departmentId)", { departmentId: filters.departmentId });
+      query.andWhere("demand.departmentId = :reportDeptId", { reportDeptId: filters.departmentId });
     }
 
     return await query.getMany();

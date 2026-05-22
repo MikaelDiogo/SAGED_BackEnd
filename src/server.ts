@@ -10,6 +10,18 @@ import cookieParser from 'cookie-parser';
 import { AppDataSource } from './database/data-source.js';
 import swaggerDocument from './swagger.json' with { type: 'json' };
 
+// ==========================================
+// TRATAMENTO DE ERROS GLOBAIS DO PROCESSO
+// Evita que o PowerShell quebre com exit code: 2
+// ==========================================
+process.on('uncaughtException', (error) => {
+  console.error('❌ ERRO CRÍTICO NÃO CAPTURADO NO NODE:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ PROMISE REJEITADA SEM TRATAMENTO EM:', promise, 'Motivo:', reason);
+});
+
 dotenv.config(); 
 
 const requiredEnvVars = ["JWT_SECRET", "DATABASE_URL", "WHATSAPP_API_KEY"];
@@ -25,24 +37,30 @@ const app = express();
 app.use(cookieParser()); 
 app.use(helmet()); 
 
-// CORRIGIDO: Agora aceita as requisições vindas do seu React (Vite)
+// Configuração do CORS para aceitar o Vite do React
 app.use(cors({
   origin: 'http://localhost:5173', 
   credentials: true, 
 }));
 
-app.use(express.json({ limit: '10kb' })); 
+// Aumentado o limite de JSON para aceitar relatórios e payloads maiores
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Configuração do Rate Limit afrouxada para o ambiente de desenvolvimento (evita falsos positivos em loops)
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 100, 
-  message: "Muitas requisições desta IP, tente novamente após 15 minutos.",
+  windowMs: 5 * 60 * 1000, // Janela reduzida para 5 minutos
+  max: 500, // Aumentado para 500 requisições (ideal para telas com muitos fetches como dashboards)
+  message: { error: "Muitas requisições vindas deste IP, tente novamente mais tarde." },
   standardHeaders: true, 
   legacyHeaders: false, 
 });
-app.use(apiLimiter);
 
+// Documentação do Swagger aberta fora do limitador de requisições
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// Aplica o limitador de requisições apenas nas rotas da API/SAGE
+app.use(apiLimiter);
 app.use(routes);
 
 const PORT = 3333; 

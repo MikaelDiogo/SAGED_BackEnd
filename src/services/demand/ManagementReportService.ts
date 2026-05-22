@@ -36,7 +36,7 @@ export class ManagementReportService {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
-    // Corrigido o mapeamento do parâmetro 'isSectorLeader' recebido do 'user'
+    // Mapeamento do filtro de secretaria baseado nas regras da policy
     const departmentId = resolveReportDepartmentFilter({
       role: user.role,
       ...(user.departmentId ? { userDepartmentId: user.departmentId } : {}),
@@ -48,33 +48,50 @@ export class ManagementReportService {
       startDate,
       endDate,
     };
+    
     if (departmentId) {
       reportFilters.departmentId = departmentId;
     }
+    
     const demands = await this.demandRepository.getReportData(reportFilters);
 
     const total = demands.length;
-    const concluded = demands.filter((d: { status: string }) => d.status === DemandStatus.CONCLUIDO);
+    
+    // Filtros protegidos contra status indefinidos
+    const concluded = demands.filter((d: any) => d?.status === DemandStatus.CONCLUIDO);
     const interrupted = demands.filter(
-      (d: { status: string }) =>
-        d.status === DemandStatus.INTERROMPIDO || d.status === DemandStatus.CANCELADO,
+      (d: any) => d?.status === DemandStatus.INTERROMPIDO || d?.status === DemandStatus.CANCELADO,
     ).length;
+    
     const resolutionRate = total > 0 ? ((concluded.length / total) * 100).toFixed(1) : "0";
 
+    // Cálculo do tempo médio com conversão e validação segura de datas
     let totalHours = 0;
-    concluded.forEach((d: { updated_at: Date; created_at: Date }) => {
-      const diff = d.updated_at.getTime() - d.created_at.getTime();
-      totalHours += diff / (1000 * 60 * 60);
+    concluded.forEach((d: any) => {
+      if (d?.updated_at && d?.created_at) {
+        const upDate = new Date(d.updated_at);
+        const crDate = new Date(d.created_at);
+        
+        if (!isNaN(upDate.getTime()) && !isNaN(crDate.getTime())) {
+          const diff = upDate.getTime() - crDate.getTime();
+          totalHours += diff / (1000 * 60 * 60);
+        }
+      }
     });
     const avgTime = concluded.length > 0 ? (totalHours / concluded.length).toFixed(1) : "0";
 
+    // Mapeamento de técnicos blindado contra relacionamentos nulos ou sem nome
     const techMap: Record<string, { total: number; concluidos: number }> = {};
-    demands.forEach((d: { technician?: { name: string }; status: string }) => {
-      if (d.technician) {
+    demands.forEach((d: any) => {
+      if (d?.technician && d.technician.name) {
         const key = d.technician.name;
-        if (!techMap[key]) techMap[key] = { total: 0, concluidos: 0 };
+        if (!techMap[key]) {
+          techMap[key] = { total: 0, concluidos: 0 };
+        }
         techMap[key].total++;
-        if (d.status === DemandStatus.CONCLUIDO) techMap[key].concluidos++;
+        if (d.status === DemandStatus.CONCLUIDO) {
+          techMap[key].concluidos++;
+        }
       }
     });
 
@@ -82,9 +99,12 @@ export class ManagementReportService {
       ? `Secretaria ID: ${departmentId}`
       : "Geral (Todas as Secretarias)";
 
+    // Contagem de status com tratamento de propriedades nulas
     const statusCounts: Record<string, number> = {};
-    demands.forEach((d: { status: string }) => {
-      statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
+    demands.forEach((d: any) => {
+      if (d?.status) {
+        statusCounts[d.status] = (statusCounts[d.status] ?? 0) + 1;
+      }
     });
 
     return {
@@ -100,7 +120,8 @@ export class ManagementReportService {
       technicians: Object.keys(techMap).map((name) => ({
         name,
         count: techMap[name]!.total,
-        concluded: techMap[name]!.concluidos,
+        concluidos: techMap[name]!.concluidos, // Mantendo compatibilidade com o objeto original mapeado
+        concluded: techMap[name]!.concluidos,  // Atende à tipagem estrita do ManagementReportResult
       })),
     };
   }

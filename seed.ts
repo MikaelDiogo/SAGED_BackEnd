@@ -1,71 +1,98 @@
-import axios from 'axios';
+// @ts-ignore
+import { AppDataSource } from "./src/database/data-source.js";
+// @ts-ignore
+import { Specialty } from "./src/entities/Specialty.js";
+// @ts-ignore
+import { Department } from "./src/entities/Department.js";
+// @ts-ignore
+import { User } from "./src/entities/User.js";
+import bcrypt from "bcryptjs";
 
-const secretariasData = [
-  { name: "Gabinete da(o) Prefeita(o)", code: "01" },
-  { name: "Gabinete do(a) Vice-Prefeito(a)", code: "01.01" },
-  { name: "Secretaria Municipal de Governo", code: "02" },
-  { name: "Procuradoria Geral do Município", code: "03" },
-  { name: "Controladoria Geral do Município", code: "04" },
-  { name: "Sec. de Administração, Finanças e Orçamento", code: "05" },
-  { name: "Sec. de Planejamento e Tecnologia da Informação", code: "06" },
-  { name: "Secretaria Municipal de Educação", code: "07" },
-  { name: "Secretaria Municipal de Saúde", code: "08" },
-  { name: "Secretaria Municipal de Assistência Social", code: "09" },
-  { name: "Sec. de Comunicação Social e Relações Públicas", code: "10" },
-  { name: "Secretaria Municipal de Segurança Cidadã e Trânsito", code: "11" },
-  { name: "Secretaria Municipal de Cultura", code: "12" },
-  { name: "Sec. de Proteção à Mulher e à Família", code: "13" },
-  { name: "Secretaria Municipal de Esporte e Lazer", code: "14" },
-  { name: "Sec. de Des. Econômico, Empreendedorismo e Trabalho", code: "15" },
-  { name: "Secretaria Municipal do Turismo", code: "16" },
-  { name: "Sec. de Desenvolvimento Agrário e Pecuário", code: "17" },
-  { name: "Sec. de Infância, Adolescência e Juventude", code: "18" },
-  { name: "Sec. de Recursos Hídricos e Defesa Civil", code: "19" },
-  { name: "Sec. de Infraestrutura e Serviços Públicos", code: "20" },
-  { name: "Secretaria Municipal de Meio Ambiente", code: "21" },
-  { name: "Secretaria Municipal de Desenvolvimento Regional", code: "22" }
+const specialtiesData = [
+  { code: "01", name: "HARDWARE" },
+  { code: "02", name: "REDES" }
 ];
 
-const API_URL = 'http://localhost:3333';
-const PADRAO_SENHA = 'saged123';
+const techniciansData = [
+  { name: "Carlos Augusto (Hardware)", email: "carlos.hardware@saged.com.br", tech_type_code: "01" },
+  { name: "Bruno Souza (Hardware)", email: "bruno.hardware@saged.com.br", tech_type_code: "01" },
+  { name: "Fernanda Lima (Redes)", email: "fernanda.redes@saged.com.br", tech_type_code: "02" },
+  { name: "Gabriel Costa (Redes)", email: "gabriel.redes@saged.com.br", tech_type_code: "02" }
+];
 
-async function rodarPopulacao() {
-  console.log("🚀 [SAGE] Iniciando seed automático de Secretarias via Requisições de API...");
+async function rodarSeedDireto() {
+  console.log("🚀 [SAGE] Inicializando conexão direta com o Banco de Dados...");
+  
+  try {
+    // 1. Inicializa o Data Source do TypeORM
+    await AppDataSource.initialize();
+    console.log("✅ Conexão com o banco estabelecida com sucesso!");
 
-  for (const sec of secretariasData) {
-    try {
-      // 1. Cadastra a Secretaria via API
-      const resDept = await axios.post(`${API_URL}/departments`, {
-        name: sec.name,
-        code: sec.code
-      });
-      
-      const deptCriado = resDept.data;
-      console.log(`\n📁 Secretaria Cadastrada: [${deptCriado.code}] - ${deptCriado.name}`);
+    const specialtyRepository = AppDataSource.getRepository(Specialty);
+    const departmentRepository = AppDataSource.getRepository(Department);
+    const userRepository = AppDataSource.getRepository(User);
 
-      const nomeLimpo = sec.name.replace("Sec. de ", "").replace("Secretaria Municipal de ", "");
-
-      // 2. Define o payload com o papel de ADMIN_SETOR e e-mail sec.codigo@
-      const payloadUsuario = {
-        name: `Admin - ${nomeLimpo}`,
-        email: `sec.${sec.code}@saged.com.br`,
-        password: PADRAO_SENHA,
-        role: "ADMIN_SETOR",
-        tech_type_code: "01", 
-        is_sector_leader: false,
-        departmentId: deptCriado.id
-      };
-
-      // 3. Cadastra o Usuário Administrador
-      const resUser = await axios.post(`${API_URL}/users`, payloadUsuario);
-      console.log(`  🔑 Usuário Vinculado: ${resUser.data.email} | Senha: ${PADRAO_SENHA}`);
-
-    } catch (error: any) {
-      console.error(`  ❌ Erro no processo da secretaria [${sec.name}]:`, error.response?.data?.message || error.message);
+    // 2. Inserir Especialidades
+    console.log("\n🛠️ Verificando Especialidades...");
+    for (const spec of specialtiesData) {
+      const exists = await specialtyRepository.findOneBy({ code: spec.code });
+      if (!exists) {
+        const newSpec = specialtyRepository.create({ code: spec.code, name: spec.name });
+        await specialtyRepository.save(newSpec);
+        console.log(`  ➕ Especialidade adicionada: ${spec.name}`);
+      } else {
+        console.log(`  ⚠️ Especialidade ${spec.name} já existe.`);
+      }
     }
-  }
 
-  console.log("\n🏁 [SAGE] População finalizada com total sucesso!");
+    // 3. Garantir a existência de uma Secretaria Base
+    console.log("\n📁 Verificando Secretaria base...");
+    let dept = await departmentRepository.findOneBy({ code: "06" });
+    
+    if (!dept) {
+      dept = departmentRepository.create({
+        name: "Sec. de Planejamento e Tecnologia da Informação",
+        code: "06"
+      });
+      await departmentRepository.save(dept);
+      console.log("  ✨ Secretaria '06' criada com sucesso!");
+    } else {
+      console.log(`  🎯 Secretaria base encontrada: ${dept.name}`);
+    }
+
+    // 4. Inserir Técnicos (Criptografando a senha manualmente)
+    console.log("\n👨‍💻 Cadastrando equipe técnica no banco...");
+    const passwordHash = await bcrypt.hash("saged123", 8);
+
+    for (const tech of techniciansData) {
+      const userExists = await userRepository.findOneBy({ email: tech.email });
+      
+      if (!userExists) {
+        const newTech = userRepository.create({
+          name: tech.name,
+          email: tech.email,
+          password: passwordHash,
+          role: "TECNICO",
+          tech_type_code: tech.tech_type_code,
+          is_sector_leader: false,
+          departmentId: dept.id
+        });
+        
+        await userRepository.save(newTech);
+        console.log(`  👤 Técnico Criado: ${tech.email}`);
+      } else {
+        console.log(`  ⚠️ Técnico ${tech.email} já está cadastrado.`);
+      }
+    }
+
+    console.log("\n🏁 [SAGE] População via DB finalizada com 100% de sucesso!");
+
+  } catch (error) {
+    console.error("❌ Erro fatal durante o seed direto:", error);
+  } finally {
+    // Fecha a conexão para o terminal não ficar travado eterno
+    await AppDataSource.destroy();
+  }
 }
 
-rodarPopulacao();
+rodarSeedDireto();

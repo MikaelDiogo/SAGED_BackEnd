@@ -6,8 +6,8 @@ export type UpdateDemandStatusInput = {
   demandId: string;
   status: string;
   technicianId: string;
-  description?: string;
-  asset_tag?: string;
+  description?: string | undefined;
+  asset_tag?: string | undefined;
 };
 
 /**
