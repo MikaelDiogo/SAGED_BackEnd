@@ -15,6 +15,12 @@ export class UserController {
         });
       }
 
+      if (!Object.values(UserRole).includes(role as any)) {
+        return res.status(400).json({
+          error: `Role inválida. Valores aceitos: ${Object.values(UserRole).join(", ")}.`,
+        });
+      }
+
       if (role !== UserRole.ADMIN_GERAL && !departmentId) {
         return res.status(400).json({
           error: "departmentId é obrigatório para este papel.",
