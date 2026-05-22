@@ -7,15 +7,21 @@ export class DemandController {
     return new DemandService(new TypeORMDemandRepository());
   }
 
-  async create(req: Request, res: Response) {
-    try {
-      const demand = await this.getService().executeCreate(req.body);
-      return res.status(201).json(demand);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erro ao criar demanda.";
-      return res.status(400).json({ error: message });
-    }
+ async create(req: Request, res: Response) {
+  try {
+    // FIX DE SEGURANÇA: Nunca confiamos no senderId vindo do body. 
+    // Sobrescrevemos com o ID do usuário autenticado extraído do token JWT.
+    const demand = await this.getService().executeCreate({
+      ...req.body,
+      senderId: req.user!.id,
+    });
+
+    return res.status(201).json(demand);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro ao criar demanda.";
+    return res.status(400).json({ error: message });
   }
+}
 
   async updateStatus(req: Request, res: Response) {
     try {

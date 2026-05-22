@@ -142,11 +142,10 @@
       },
       "CreateDemandRequest": {
         "type": "object",
-        "required": ["title", "description", "senderId", "departmentId", "techTypeCode"],
+        "required": ["title", "description", "departmentId", "techTypeCode"],
         "properties": {
           "title": { "type": "string", "example": "Switch do posto com falha intermitente" },
           "description": { "type": "string", "example": "Equipamento reinicia sozinho à noite." },
-          "senderId": { "type": "string", "format": "uuid" },
           "departmentId": { "type": "string", "format": "uuid" },
           "techTypeCode": { "type": "string", "description": "Código TEC do segmento.", "example": "02" },
           "asset_tag": { "type": "string", "nullable": true, "example": "123456" }
