@@ -67,7 +67,6 @@ export class SessionController {
           is_sector_leader: user.is_sector_leader ?? false,
           departmentId: user.departmentId,
         },
-        token,
       });
     } catch (error) {
       console.error(error);
