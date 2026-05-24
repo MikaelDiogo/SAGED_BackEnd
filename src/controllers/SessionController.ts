@@ -54,7 +54,7 @@ export class SessionController {
       res.cookie('token', token, {
         httpOnly: true, // Impede acesso via JavaScript no navegador
         secure: process.env.NODE_ENV === 'production', // Envia apenas em HTTPS em produção
-        sameSite: 'lax', // Proteção contra CSRF
+        sameSite: 'strict', // Proteção contra CSRF
         expires: expirationDate,
       });
       return res.json({
