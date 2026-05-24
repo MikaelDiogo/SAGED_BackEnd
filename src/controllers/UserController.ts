@@ -15,6 +15,12 @@ export class UserController {
         });
       }
 
+      if (name && name.length > 150) {
+        return res.status(400).json({
+          error: "Nome muito longo (máximo 150 caracteres).",
+        });
+      }
+
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         return res.status(400).json({

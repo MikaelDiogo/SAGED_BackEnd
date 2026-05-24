@@ -9,6 +9,18 @@ export class DemandController {
 
  async create(req: Request, res: Response) {
   try {
+    const { title, description, asset_tag } = req.body;
+
+    if (title && title.length > 200) {
+      return res.status(400).json({ error: 'Título muito longo (máximo 200 caracteres).' });
+    }
+    if (description && description.length > 2000) {
+      return res.status(400).json({ error: 'Descrição muito longa (máximo 2000 caracteres).' });
+    }
+    if (asset_tag && asset_tag.length > 50) {
+      return res.status(400).json({ error: 'Patrimônio muito longo (máximo 50 caracteres).' });
+    }
+
     // FIX DE SEGURANÇA: Nunca confiamos no senderId vindo do body. 
     // Sobrescrevemos com o ID do usuário autenticado extraído do token JWT.
     const demand = await this.getService().executeCreate({
