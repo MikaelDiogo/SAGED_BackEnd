@@ -24,7 +24,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 dotenv.config(); 
 
-const requiredEnvVars = ["JWT_SECRET", "DATABASE_URL", "WHATSAPP_API_KEY"];
+const requiredEnvVars = ["JWT_SECRET", "DATABASE_URL", "WHATSAPP_API_KEY", "ALLOWED_ORIGIN"];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`❌ ERRO FATAL: A variável de ambiente ${envVar} não foi definida.`);
@@ -37,9 +37,9 @@ const app = express();
 app.use(cookieParser()); 
 app.use(helmet()); 
 
-// Configuração do CORS para aceitar o Vite do React
+// FIX R-07: CORS configurável via variável de ambiente para suportar produção sem expor a API globalmente.
 app.use(cors({
-  origin: 'http://localhost:5173', 
+  origin: process.env.ALLOWED_ORIGIN, 
   credentials: true, 
 }));
 
