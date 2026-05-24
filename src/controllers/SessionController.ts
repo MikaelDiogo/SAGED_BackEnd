@@ -74,6 +74,12 @@ export class SessionController {
     }
   }
 
+    async me(req: Request, res: Response) {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: "Não autenticado." });
+    return res.json({ user });
+  }
+
   async logout(req: Request, res: Response) {
     res.clearCookie('token', {
       httpOnly: true,
