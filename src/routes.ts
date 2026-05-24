@@ -35,6 +35,8 @@ routes.get("/demands/whatsapp/summary/:lid", ensureApiKey, (req, res) => demandC
 // Barreira global de autenticação
 routes.use(ensureAuthenticated);
 
+routes.get("/sessions/me", (req, res) => sessionController.me(req, res));
+
 // Apenas ADMIN_GERAL pode criar recursos estruturais
 routes.post("/users", ensureRole(["ADMIN_GERAL"]), (req, res) => userController.create(req, res));
 routes.post("/departments", ensureRole(["ADMIN_GERAL"]), (req, res) => deptController.create(req, res));
