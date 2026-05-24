@@ -15,10 +15,14 @@ export class TechnicianWhatsAppSummaryService {
     const technician = await this.userRepository.findOne({ where: { lid } });
     if (!technician) return "⚠️ Usuário não identificado no sistema SAGED.";
 
-    const demands = await this.demandRepository.findAllFiltered({
-      technicianId: technician.id,
-      status: DemandStatus.EM_ANDAMENTO,
-    });
+    const demands = await this.demandRepository.findAllFiltered(
+      {
+        technicianId: technician.id,
+        status: DemandStatus.EM_ANDAMENTO,
+      },
+      1,
+      20
+    );
 
     if (demands.length === 0) {
       return `✅ Olá ${technician.name}, sem pendências no momento!`;
