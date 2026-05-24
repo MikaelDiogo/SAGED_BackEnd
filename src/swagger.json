@@ -316,6 +316,16 @@
               "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Department" } } }
             }
           }
+        },
+        "delete": {
+          "tags": ["Autenticação"],
+          "summary": "Logout do sistema",
+          "description": "Encerra a sessão removendo o Cookie HttpOnly do navegador.",
+          "responses": {
+            "204": {
+              "description": "Sessão encerrada com sucesso"
+            }
+          }
         }
       }
     },

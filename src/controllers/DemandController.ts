@@ -14,6 +14,7 @@ export class DemandController {
     const demand = await this.getService().executeCreate({
       ...req.body,
       senderId: req.user!.id,
+      user: req.user!,
     });
 
     return res.status(201).json(demand);

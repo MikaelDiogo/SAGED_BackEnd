@@ -29,6 +29,7 @@ const loginLimiter = rateLimit({
 
 // Rotas totalmente públicas
 routes.post("/sessions", loginLimiter, (req, res) => sessionController.create(req, res));
+routes.delete("/sessions", (req, res) => sessionController.logout(req, res));
 routes.get("/demands/whatsapp/summary/:lid", ensureApiKey, (req, res) => demandController.getBotSummary(req, res));
 
 // Barreira global de autenticação

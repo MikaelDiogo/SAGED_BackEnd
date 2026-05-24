@@ -1,3 +1,5 @@
+import type { AuthenticatedUser } from "../types/auth.js";
+
 export interface CreateDemandData {
   protocol: string;
   title: string;
@@ -9,7 +11,9 @@ export interface CreateDemandData {
   asset_tag?: string;
 }
 
-export type CreateDemandPayload = Omit<CreateDemandData, "protocol" | "deptCode">;
+export type CreateDemandPayload = Omit<CreateDemandData, "protocol" | "deptCode"> & {
+  user: AuthenticatedUser;
+};
 
 export type DemandHistoryEntry = {
   demandId: string;

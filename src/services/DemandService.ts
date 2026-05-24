@@ -9,6 +9,7 @@ import { assertDemandAccess, resolveDemandListFilters } from "../policies/demand
 import { AppDataSource } from "../database/data-source.js";
 import { Demand } from "../entities/Demand.js";
 import { UserRole } from "../constants/user-roles.js";
+import { AccessDeniedError } from "../errors/AccessDeniedError.js";
 
 export interface UpdateTechnicalStatusInput {
   demandId: string;
@@ -32,6 +33,13 @@ export class DemandService {
   }
 
   async executeCreate(data: CreateDemandPayload) {
+    // FIX R-02: Validação de IDOR. Impede que técnicos/líderes criem demandas para outros departamentos.
+    if (data.user.role !== UserRole.ADMIN_GERAL) {
+      if (data.departmentId !== data.user.departmentId) {
+        throw new AccessDeniedError("Você não pode abrir demandas para outra secretaria.");
+      }
+    }
+
     return await AppDataSource.transaction(async (transactionalEntityManager) => {
       const dept = await this.demandRepository.findDepartmentById(data.departmentId);
       if (!dept) throw new Error("Departamento não encontrado.");
@@ -56,8 +64,11 @@ export class DemandService {
       const sequence = this.protocolService.nextSequence(lastSequence);
       const protocol = this.protocolService.buildProtocol(year, dept.code, data.techTypeCode, sequence);
 
+      // Removemos o objeto 'user' do payload para coincidir com a interface CreateDemandData do repositório
+      const { user, ...cleanData } = data;
+
       const payload: CreateDemandData = {
-        ...data,
+        ...cleanData,
         techTypeCode: ProtocolService.normalizeSegment(data.techTypeCode),
         deptCode: ProtocolService.normalizeSegment(dept.code),
         protocol,
