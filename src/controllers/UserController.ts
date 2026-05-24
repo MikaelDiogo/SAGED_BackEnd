@@ -15,6 +15,18 @@ export class UserController {
         });
       }
 
+      if (password.length < 8) {
+        return res.status(400).json({
+          error: "Senha deve ter no minimo 8 caracteres.",
+        });
+      }
+
+      if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({
+          error: "Senha deve conter pelo menos uma letra e um numero.",
+        });
+      }
+
       if (!Object.values(UserRole).includes(role as any)) {
         return res.status(400).json({
           error: `Role inválida. Valores aceitos: ${Object.values(UserRole).join(", ")}.`,
