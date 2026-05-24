@@ -43,9 +43,9 @@ app.use(cors({
   credentials: true, 
 }));
 
-// Aumentado o limite de JSON para aceitar relatórios e payloads maiores
-app.use(express.json({ limit: '50mb' })); 
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// FIX R-04: Redução do limite de payload para evitar ataques de DoS por body gigante.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Configuração do Rate Limit afrouxada para o ambiente de desenvolvimento (evita falsos positivos em loops)
 const apiLimiter = rateLimit({
