@@ -47,11 +47,11 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Configuração do Rate Limit afrouxada para o ambiente de desenvolvimento (evita falsos positivos em loops)
+// FIX R-05: Ajuste do Rate Limit global para ser mais restritivo (100 requisições / 5 min).
 const apiLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // Janela reduzida para 5 minutos
-  max: 500, // Aumentado para 500 requisições (ideal para telas com muitos fetches como dashboards)
-  message: { error: "Muitas requisições vindas deste IP, tente novamente mais tarde." },
+  max: 100,
+  message: { error: 'Muitas requisicoes vindas deste IP, tente novamente mais tarde.' },
   standardHeaders: true, 
   legacyHeaders: false, 
 });
