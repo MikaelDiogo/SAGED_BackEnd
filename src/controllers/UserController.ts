@@ -15,6 +15,13 @@ export class UserController {
         });
       }
 
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          error: "Formato de e-mail inválido.",
+        });
+      }
+
       if (password.length < 8) {
         return res.status(400).json({
           error: "Senha deve ter no minimo 8 caracteres.",
