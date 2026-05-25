@@ -54,10 +54,6 @@ export function assertManagementReportAllowed(user: AuthenticatedUser): void {
   ) {
     return;
   }
-  
-  if (role === UserRole.TECNICO && isSectorLeader === true) {
-    return;
-  }
   throw new AccessDeniedError("Acesso negado ao relatório gerencial.");
 }
 
@@ -75,8 +71,7 @@ export function resolveReportDepartmentFilter(params: {
 
   if (
     role === UserRole.ADMIN_SETOR ||
-    role === UserRole.TECNICO_LIDER ||
-    (role === UserRole.TECNICO && isSectorLeader === true)
+    role === UserRole.TECNICO_LIDER
   ) {
     return userDepartmentId;
   }
