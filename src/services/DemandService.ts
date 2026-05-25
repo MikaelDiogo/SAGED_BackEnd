@@ -98,11 +98,6 @@ export class DemandService {
   async listForDashboard(user: AuthenticatedUser, page: number, limit: number) {
     const filters = resolveDemandListFilters(user);
 
-    // FIX: Uso da constante UserRole para manter a consistência do RBAC
-    if (user.role === UserRole.TECNICO && !user.isSectorLeader) {
-      filters.technician_id = user.id;
-    }
-
     return await this.demandRepository.findAllFiltered(filters, page, limit);
   }
 

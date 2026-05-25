@@ -90,9 +90,9 @@ export function resolveReportDepartmentFilter(params: {
  */
 export function assertDemandAccess(
   user: AuthenticatedUser, 
-  demand: { departmentId: string; current_technician_id?: string | null }
+  demand: { departmentId: string; current_technician_id?: string | null; techTypeCode?: string }
 ): void {
-  const { role, departmentId, id, isSectorLeader } = user;
+  const { role, departmentId, id, isSectorLeader, tech_type_code } = user;
 
   // 1. ADMIN_GERAL: Acesso total irrestrito
   if (role === UserRole.ADMIN_GERAL) return;
@@ -108,10 +108,16 @@ export function assertDemandAccess(
     throw new AccessDeniedError("Acesso negado: Esta demanda pertence a outra secretaria.");
   }
 
-  // 3. Técnico Comum: Só pode acessar se ele for o técnico atualmente atribuído
+  // 3. Técnico Comum: 
   if (role === UserRole.TECNICO) {
+    // Se ele já for o técnico atribuído, permite o acesso.
     if (demand.current_technician_id === id) return;
-    throw new AccessDeniedError("Acesso negado: Você não é o técnico atribuído a esta demanda.");
+
+    // Permite acesso se o chamado estiver sem técnico (disponível para ser assumido)
+    // e se for da mesma secretaria e especialidade do técnico logado.
+    if (!demand.current_technician_id && demand.departmentId === departmentId && demand.techTypeCode === tech_type_code) return;
+
+    throw new AccessDeniedError("Acesso negado: Você não tem permissão para interagir com este chamado.");
   }
 
   throw new AccessDeniedError("Acesso negado: Você não tem permissão para acessar esta demanda.");
